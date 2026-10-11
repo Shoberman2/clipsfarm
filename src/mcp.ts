@@ -39,7 +39,7 @@ const time = z
   );
 
 export async function startMcpServer(defaultOutDir: string) {
-  const server = new McpServer({ name: "clipswarm", version: "0.1.0" });
+  const server = new McpServer({ name: "clipsfarm", version: "0.1.0" });
 
   server.registerTool(
     "get_video_info",
@@ -202,7 +202,7 @@ export async function startMcpServer(defaultOutDir: string) {
         autoClip: z.boolean().optional().describe("Default true. false = only collect videos into the inbox"),
         picker: z.enum(["auto", "ai", "heatmap", "transcript"]).optional().describe('How moments are chosen. Default "auto"'),
         includeLive: z.boolean().optional().describe("Also surface streams that are live right now"),
-        outDir: z.string().optional().describe("Default ~/clipswarm/<id>"),
+        outDir: z.string().optional().describe("Default ~/clipsfarm/<id>"),
       },
     },
     async ({ every, ...rest }) => {

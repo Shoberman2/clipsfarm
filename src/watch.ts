@@ -7,8 +7,9 @@
  * then a transcript heuristic. Anything it can't clip, and live streams, land
  * in an inbox for an AI agent.
  *
- * State lives in ~/.clipswarm/state.json (override with CLIPSWARM_HOME).
- * Scheduling is external and stateless: `clipswarm watch run` runs whatever is
+ * State lives in ~/.clipsfarm/state.json (override with CLIPSFARM_HOME;
+ * CLIPSWARM_HOME remains accepted for existing installs).
+ * Scheduling is external and stateless: `clipsfarm watch run` runs whatever is
  * due, so launchd, cron, `watch daemon` or an agent loop can all drive it.
  */
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
@@ -31,6 +32,7 @@ import {
 } from "./core.js";
 import { sanitize, transcribeUrl } from "./viral.js";
 import { hasClaudeCli, pickFromTranscript, pickWithAI, type Moment } from "./pick.js";
+import { configEnv, configuredEnvName } from "./env.js";
 
 export interface Watch {
   id: string;
@@ -58,7 +60,7 @@ export interface Watch {
   style?: "viral" | "plain";
   /** Also surface streams that are live right now. Default false. */
   includeLive?: boolean;
-  /** Default ~/clipswarm/<id>. */
+  /** Default ~/clipsfarm/<id>. */
   outDir?: string;
   createdAt: string;
   lastRunAt?: string;
@@ -90,7 +92,10 @@ interface State {
 
 // ---------- state ----------
 
-export const HOME = process.env.CLIPSWARM_HOME ?? path.join(os.homedir(), ".clipswarm");
+const defaultHome = path.join(os.homedir(), ".clipsfarm");
+const legacyHome = path.join(os.homedir(), ".clipswarm");
+export const HOME = configEnv("CLIPSFARM_HOME") ??
+  (existsSync(path.join(defaultHome, "state.json")) || !existsSync(path.join(legacyHome, "state.json")) ? defaultHome : legacyHome);
 const STATE = () => path.join(HOME, "state.json");
 
 async function load(): Promise<State> {
@@ -340,7 +345,7 @@ async function clipVideo(watch: Watch, info: RawInfo, url: string): Promise<Pick
     });
     if (words?.length) segs = wordsToSegments(words);
     else if (words === undefined && !transcriptNote.includes("Local"))
-      transcriptNote += " Install whisper.cpp and run `clipswarm setup` to transcribe locally when captions are unavailable.";
+      transcriptNote += " Install whisper.cpp and run `clipsfarm setup` to transcribe locally when captions are unavailable.";
   }
   const { moments, method, warnings } = await chooseMoments(watch, info, segs);
   if (!segs.length && transcriptNote) warnings.push(transcriptNote);
@@ -356,7 +361,7 @@ async function clipVideo(watch: Watch, info: RawInfo, url: string): Promise<Pick
     title: m.hook ?? fallbackHook,
     label: `${day}-${slug(info.title).slice(0, 40)}-${i + 1}`,
   }));
-  const results = await createClips(jobs, watch.outDir ?? path.join(os.homedir(), "clipswarm", watch.id));
+  const results = await createClips(jobs, watch.outDir ?? path.join(os.homedir(), "clipsfarm", watch.id));
   const ok = results.filter((r) => r.ok).map((r) => r.path!);
   const errs = results.filter((r) => !r.ok).map((r) => r.error);
   const summary = moments.map((m) => `${formatTime(m.start)}${m.hook ? ` "${m.hook}"` : ""}`).join(", ");
@@ -484,19 +489,22 @@ export async function runDue(force = false): Promise<RunReport[]> {
 }
 
 async function notify(message: string) {
-  if (process.platform !== "darwin" || process.env.CLIPSWARM_NO_NOTIFY) return;
+  if (process.platform !== "darwin" || configEnv("CLIPSFARM_NO_NOTIFY")) return;
   const esc = message.replace(/["\\]/g, "\\$&");
-  await exec("osascript", ["-e", `display notification "${esc}" with title "clipswarm"`]).catch(() => {});
+  await exec("osascript", ["-e", `display notification "${esc}" with title "clipsfarm"`]).catch(() => {});
 }
 
 // ---------- scheduling ----------
 
-const LABEL = "dev.clipswarm.watch";
-const WIN_TASK = "clipswarm-watch";
+const LABEL = "dev.clipsfarm.watch";
+const LEGACY_LABEL = "dev.clipswarm.watch";
+const WIN_TASK = "clipsfarm-watch";
+const LEGACY_WIN_TASK = "clipswarm-watch";
 const PLIST = path.join(os.homedir(), "Library", "LaunchAgents", `${LABEL}.plist`);
+const LEGACY_PLIST = path.join(os.homedir(), "Library", "LaunchAgents", `${LEGACY_LABEL}.plist`);
 
 /**
- * Installs a background job that runs `clipswarm watch run` every few minutes
+ * Installs a background job that runs `clipsfarm watch run` every few minutes
  * (each watch still only runs at its own interval). launchd on macOS; on
  * other platforms, returns a crontab line to add.
  */
@@ -507,6 +515,7 @@ export async function installScheduler(cliPath: string, checkEveryMin = 5): Prom
     // Task Scheduler runs the command through cmd, which handles the log redirect.
     const log = path.join(HOME, "watch.log");
     const tr = `cmd /c ""${process.execPath}" "${cliPath}" watch run >> "${log}" 2>&1"`;
+    await exec("schtasks", ["/Delete", "/F", "/TN", LEGACY_WIN_TASK]).catch(() => {});
     await exec("schtasks", ["/Create", "/F", "/SC", "MINUTE", "/MO", String(checkEveryMin), "/TN", WIN_TASK, "/TR", tr]);
     return `Installed scheduled task "${WIN_TASK}": checks every ${checkEveryMin} min. Log: ${log}`;
   }
@@ -522,7 +531,7 @@ export async function installScheduler(cliPath: string, checkEveryMin = 5): Prom
   <key>RunAtLoad</key><true/>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>${xml(process.env.PATH ?? "/usr/bin:/bin")}</string>
-    ${process.env.CLIPSWARM_HOME ? `<key>CLIPSWARM_HOME</key><string>${xml(HOME)}</string>` : ""}
+    ${configuredEnvName("CLIPSFARM_HOME") ? `<key>${configuredEnvName("CLIPSFARM_HOME")}</key><string>${xml(HOME)}</string>` : ""}
   </dict>
   <key>StandardOutPath</key><string>${xml(path.join(HOME, "watch.log"))}</string>
   <key>StandardErrorPath</key><string>${xml(path.join(HOME, "watch.log"))}</string>
@@ -532,10 +541,12 @@ export async function installScheduler(cliPath: string, checkEveryMin = 5): Prom
   await mkdir(HOME, { recursive: true });
   await writeFile(PLIST, plist);
   const uid = String(process.getuid?.() ?? 501);
+  await exec("launchctl", ["bootout", `gui/${uid}`, LEGACY_PLIST]).catch(() => {});
+  await rm(LEGACY_PLIST, { force: true });
   await exec("launchctl", ["bootout", `gui/${uid}`, PLIST]).catch(() => {});
   await exec("launchctl", ["bootstrap", `gui/${uid}`, PLIST]);
   const npxWarning = cliPath.includes("_npx")
-    ? "\nNote: this points at an npx cache copy, which npm may delete. For a durable install run `npm i -g clipswarm` and re-run `clipswarm watch install`."
+    ? "\nNote: this points at an npx cache copy, which npm may delete. For a durable install run `npm i -g clipsfarm` and re-run `clipsfarm watch install`."
     : "";
   return `Installed background job ${LABEL}: checks every ${checkEveryMin} min. Log: ${path.join(HOME, "watch.log")}${npxWarning}`;
 }
@@ -543,23 +554,29 @@ export async function installScheduler(cliPath: string, checkEveryMin = 5): Prom
 export async function uninstallScheduler(): Promise<string> {
   if (process.platform === "win32") {
     await exec("schtasks", ["/Delete", "/F", "/TN", WIN_TASK]).catch(() => {});
+    await exec("schtasks", ["/Delete", "/F", "/TN", LEGACY_WIN_TASK]).catch(() => {});
     return `Removed scheduled task "${WIN_TASK}".`;
   }
-  if (process.platform !== "darwin") return "Remove the clipswarm line with `crontab -e`.";
+  if (process.platform !== "darwin") return "Remove the clipsfarm line with `crontab -e`.";
   const uid = String(process.getuid?.() ?? 501);
   await exec("launchctl", ["bootout", `gui/${uid}`, PLIST]).catch(() => {});
+  await exec("launchctl", ["bootout", `gui/${uid}`, LEGACY_PLIST]).catch(() => {});
   await rm(PLIST, { force: true });
+  await rm(LEGACY_PLIST, { force: true });
   return `Removed background job ${LABEL}.`;
 }
 
 export async function schedulerStatus(): Promise<{ installed: boolean; detail: string }> {
   if (process.platform === "win32") {
-    const ok = await exec("schtasks", ["/Query", "/TN", WIN_TASK]).then(() => true, () => false);
-    return { installed: ok, detail: ok ? `Scheduled task "${WIN_TASK}" is installed.` : "Not installed. Run `clipswarm watch install`." };
+    const task = await exec("schtasks", ["/Query", "/TN", WIN_TASK]).then(() => WIN_TASK, async () =>
+      (await exec("schtasks", ["/Query", "/TN", LEGACY_WIN_TASK]).then(() => LEGACY_WIN_TASK, () => undefined)));
+    return { installed: !!task, detail: task ? `Scheduled task "${task}" is installed.` : "Not installed. Run `clipsfarm watch install`." };
   }
-  if (process.platform !== "darwin") return { installed: false, detail: "Check `crontab -l` for a clipswarm line." };
-  if (!existsSync(PLIST)) return { installed: false, detail: "Not installed. Run `clipswarm watch install`." };
+  if (process.platform !== "darwin") return { installed: false, detail: "Check `crontab -l` for a clipsfarm line." };
+  const plist = existsSync(PLIST) ? PLIST : existsSync(LEGACY_PLIST) ? LEGACY_PLIST : undefined;
+  if (!plist) return { installed: false, detail: "Not installed. Run `clipsfarm watch install`." };
   const uid = String(process.getuid?.() ?? 501);
-  const loaded = await exec("launchctl", ["print", `gui/${uid}/${LABEL}`]).then(() => true, () => false);
-  return { installed: loaded, detail: loaded ? `Running (${PLIST})` : `Plist exists but isn't loaded: ${PLIST}` };
+  const label = plist === LEGACY_PLIST ? LEGACY_LABEL : LABEL;
+  const loaded = await exec("launchctl", ["print", `gui/${uid}/${label}`]).then(() => true, () => false);
+  return { installed: loaded, detail: loaded ? `Running (${plist})` : `Plist exists but isn't loaded: ${plist}` };
 }

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 // Isolate state before the module reads CLIPSWARM_HOME.
-process.env.CLIPSWARM_HOME = mkdtempSync(path.join(os.tmpdir(), "clipswarm-home-"));
+process.env.CLIPSWARM_HOME = mkdtempSync(path.join(os.tmpdir(), "clipsfarm-home-"));
 process.env.CLIPSWARM_NO_NOTIFY = "1";
 const w = await import("../src/watch.js");
 

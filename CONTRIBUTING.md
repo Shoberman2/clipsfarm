@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. clipswarm aims to stay small: a reliable clipping primitive that agents call. Clip *selection* belongs to the agent, not to us.
+Thanks for helping. clipsfarm aims to stay small: a reliable clipping primitive that agents call. Clip *selection* belongs to the agent, not to us.
 
 ## Dev setup
 

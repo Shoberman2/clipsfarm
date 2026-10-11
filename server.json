@@ -1,16 +1,16 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.Shoberman2/clipswarm",
+  "name": "io.github.Shoberman2/clipsfarm",
   "description": "Clip YouTube videos and livestreams into viral 9:16 shorts, in parallel, for AI agents",
   "repository": {
-    "url": "https://github.com/Shoberman2/clipswarm",
+    "url": "https://github.com/Shoberman2/clipsfarm",
     "source": "github"
   },
   "version": "0.1.0",
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "clipswarm",
+      "identifier": "clipsfarm",
       "version": "0.1.0",
       "transport": {
         "type": "stdio"

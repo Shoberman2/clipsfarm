@@ -4,6 +4,7 @@ import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { renderViral, transcribeLocal, WHISPER_MODEL } from "./viral.js";
+import { configEnv } from "./env.js";
 
 export interface ClipJob {
   url: string;
@@ -80,14 +81,16 @@ export interface VideoInfo {
 }
 
 function numericEnv(name: string, fallback: number, valid: (value: number) => boolean, expected: string): number {
-  const raw = process.env[name];
+  const legacyName = name.startsWith("CLIPSFARM_") ? name.replace(/^CLIPSFARM_/, "CLIPSWARM_") : undefined;
+  const actualName = process.env[name] === undefined && legacyName && process.env[legacyName] !== undefined ? legacyName : name;
+  const raw = configEnv(name);
   if (raw === undefined) return fallback;
   const value = Number(raw);
-  if (!valid(value)) throw new Error(`${name} must be ${expected}; got ${JSON.stringify(raw)}.`);
+  if (!valid(value)) throw new Error(`${actualName} must be ${expected}; got ${JSON.stringify(raw)}.`);
   return value;
 }
 
-const MAX_CLIP_SEC = numericEnv("CLIPSWARM_MAX_CLIP_SEC", 600, (n) => Number.isFinite(n) && n > 0, "a finite number greater than 0");
+const MAX_CLIP_SEC = numericEnv("CLIPSFARM_MAX_CLIP_SEC", 600, (n) => Number.isFinite(n) && n > 0, "a finite number greater than 0");
 
 // ---------- time helpers ----------
 
@@ -136,7 +139,7 @@ class Semaphore {
 
 export const limiter = new Semaphore(
   numericEnv(
-    "CLIPSWARM_CONCURRENCY",
+    "CLIPSFARM_CONCURRENCY",
     Math.max(2, Math.min(6, os.cpus().length)),
     (n) => Number.isInteger(n) && n > 0,
     "a positive integer",
@@ -182,7 +185,7 @@ export function exec(cmd: string, args: string[]): Promise<string> {
   });
 }
 
-const RETRIES = numericEnv("CLIPSWARM_RETRIES", 3, (n) => Number.isInteger(n) && n >= 0, "a non-negative integer");
+const RETRIES = numericEnv("CLIPSFARM_RETRIES", 3, (n) => Number.isInteger(n) && n >= 0, "a non-negative integer");
 
 /** YouTube intermittently 403s individual stream requests; a fresh attempt usually succeeds. */
 export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -200,7 +203,7 @@ let jsRuntimeArgs: Promise<string[]> | undefined;
 
 /**
  * yt-dlp needs a JavaScript runtime to download from YouTube and only enables
- * Deno by default. Node is always present when clipswarm runs, so offer it.
+ * Deno by default. Node is always present when clipsfarm runs, so offer it.
  */
 export function ytdlp(args: string[]): Promise<string> {
   jsRuntimeArgs ??= exec("yt-dlp", ["--help"]).then(
@@ -409,7 +412,7 @@ function isAbsolute(t: string | number): boolean {
 function checkLength(start: number, end: number, job: ClipJob) {
   if (!(end > start)) throw new Error(`end (${job.end}) must be after start (${job.start})`);
   if (end - start > MAX_CLIP_SEC)
-    throw new Error(`Clip is ${Math.round(end - start)}s; max is ${MAX_CLIP_SEC}s (set CLIPSWARM_MAX_CLIP_SEC to raise).`);
+    throw new Error(`Clip is ${Math.round(end - start)}s; max is ${MAX_CLIP_SEC}s (set CLIPSFARM_MAX_CLIP_SEC to raise; CLIPSWARM_MAX_CLIP_SEC is still accepted).`);
 }
 
 /**
@@ -626,7 +629,7 @@ async function createLiveClip(job: ClipJob, info: RawInfo, outDir: string, t0: n
   const finalPath = outputPath(job, info, outDir, `live-${stamp}`);
 
   await limiter.run(async () => {
-    const tmp = await mkdtemp(path.join(os.tmpdir(), "clipswarm-"));
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "clipsfarm-"));
     try {
       const vFile = path.join(tmp, "v.ts");
       const aFile = path.join(tmp, "a.ts");
@@ -674,7 +677,7 @@ async function createViralClip(job: ClipJob, outDir: string): Promise<ClipResult
   const t0 = Date.now();
   let tmp: string | undefined;
   try {
-    tmp = await mkdtemp(path.join(os.tmpdir(), "clipswarm-src-"));
+    tmp = await mkdtemp(path.join(os.tmpdir(), "clipsfarm-src-"));
     const base = await createClip({ ...job, style: "plain", vertical: false, label: "src" }, tmp);
     if (!base.ok) return { ...base, job, elapsedMs: Date.now() - t0 };
 
@@ -696,7 +699,7 @@ async function createViralClip(job: ClipJob, outDir: string): Promise<ClipResult
       else if (!words?.length && !warnings.length)
         warnings.push(
           `No captions: ${base.live ? "live streams have no YouTube captions" : "this video has no captions"}. ` +
-            `Install whisper.cpp and run \`clipswarm setup\` to transcribe locally (model: ${WHISPER_MODEL}).`,
+            `Install whisper.cpp and run \`clipsfarm setup\` to transcribe locally (model: ${WHISPER_MODEL}).`,
         );
     }
 
