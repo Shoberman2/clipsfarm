@@ -19,7 +19,7 @@ body:
   - type: textarea
     id: setup
     attributes:
-      label: Output of `npx clipswarm setup`
+      label: Output of `npx clipsfarm setup`
       render: text
     validations:
       required: true

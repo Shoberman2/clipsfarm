@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import opentype from "opentype.js";
 import { Resvg } from "@resvg/resvg-js";
 import { exec, hasCommand, withRetry, ytdlp, type Word } from "./core.js";
+import { configEnv } from "./env.js";
 
 export interface ViralOptions {
   /** Header hook text. Omit or "" for no header. */
@@ -35,7 +36,7 @@ const FPS = 30;
 // ---------- text rendering ----------
 
 const FONT_PATH =
-  process.env.CLIPSWARM_FONT ?? fileURLToPath(new URL("../assets/fonts/Montserrat-Black.ttf", import.meta.url));
+  configEnv("CLIPSFARM_FONT") ?? fileURLToPath(new URL("../assets/fonts/Montserrat-Black.ttf", import.meta.url));
 let font: opentype.Font | undefined;
 
 function getFont(): opentype.Font {
@@ -214,8 +215,10 @@ export function dropNonSpeech(words: Word[]): Word[] {
   return out;
 }
 
+const newWhisperModel = path.join(os.homedir(), ".cache", "clipsfarm", "ggml-base.en.bin");
+const oldWhisperModel = path.join(os.homedir(), ".cache", "clipswarm", "ggml-base.en.bin");
 export const WHISPER_MODEL =
-  process.env.CLIPSWARM_WHISPER_MODEL ?? path.join(os.homedir(), ".cache", "clipswarm", "ggml-base.en.bin");
+  configEnv("CLIPSFARM_WHISPER_MODEL") ?? (existsSync(newWhisperModel) || !existsSync(oldWhisperModel) ? newWhisperModel : oldWhisperModel);
 
 async function findWhisper(): Promise<string | undefined> {
   return ["whisper-cli", "whisper-cpp"].find(hasCommand);
@@ -228,7 +231,7 @@ async function findWhisper(): Promise<string | undefined> {
 export async function transcribeLocal(videoPath: string): Promise<Word[] | undefined> {
   const bin = await findWhisper();
   if (!bin || !existsSync(WHISPER_MODEL)) return undefined;
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "clipswarm-asr-"));
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "clipsfarm-asr-"));
   try {
     const wav = path.join(tmp, "a.wav");
     await exec("ffmpeg", ["-y", "-loglevel", "error", "-i", videoPath, "-vn", "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wav]);
@@ -252,7 +255,7 @@ export async function transcribeLocal(videoPath: string): Promise<Word[] | undef
  */
 export async function transcribeUrl(url: string): Promise<Word[] | undefined> {
   if (!(await findWhisper()) || !existsSync(WHISPER_MODEL)) return undefined;
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "clipswarm-audio-"));
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "clipsfarm-audio-"));
   try {
     const out = path.join(tmp, "audio.m4a");
     await withRetry(() =>
@@ -339,7 +342,7 @@ export async function renderViral(src: string, dest: string, words: Word[] | und
   const trim = Math.max(0, opts.trimStart ?? 0);
   const duration = probed.duration - trim;
   const title = sanitize(opts.title ?? "");
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "clipswarm-viral-"));
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "clipsfarm-viral-"));
   try {
     const header = title ? renderHeader(title) : undefined;
     const frames = opts.captions === false || !words?.length ? [] : buildCaptionFrames(words, duration);

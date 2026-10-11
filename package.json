@@ -1,5 +1,5 @@
 {
-  "name": "clipswarm",
+  "name": "clipsfarm",
   "version": "0.1.0",
   "description": "Parallel YouTube & livestream clipping for AI agents: viral 9:16 shorts with hook headers and word-by-word captions. MCP server + CLI.",
   "main": "dist/core.js",
@@ -40,6 +40,7 @@
   },
   "type": "module",
   "bin": {
+    "clipsfarm": "dist/cli.js",
     "clipswarm": "dist/cli.js"
   },
   "types": "dist/core.d.ts",
@@ -53,11 +54,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Shoberman2/clipswarm.git"
+    "url": "git+https://github.com/Shoberman2/clipsfarm.git"
   },
-  "homepage": "https://github.com/Shoberman2/clipswarm#readme",
+  "homepage": "https://github.com/Shoberman2/clipsfarm#readme",
   "bugs": {
-    "url": "https://github.com/Shoberman2/clipswarm/issues"
+    "url": "https://github.com/Shoberman2/clipsfarm/issues"
   },
-  "mcpName": "io.github.Shoberman2/clipswarm"
+  "mcpName": "io.github.Shoberman2/clipsfarm"
 }

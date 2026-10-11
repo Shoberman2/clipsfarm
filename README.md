@@ -1,24 +1,24 @@
-# clipswarm
+# clipsfarm
 
-[![CI](https://github.com/Shoberman2/clipswarm/actions/workflows/ci.yml/badge.svg)](https://github.com/Shoberman2/clipswarm/actions/workflows/ci.yml) [![npm](https://img.shields.io/npm/v/clipswarm)](https://www.npmjs.com/package/clipswarm) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/Shoberman2/clipsfarm/actions/workflows/ci.yml/badge.svg)](https://github.com/Shoberman2/clipsfarm/actions/workflows/ci.yml) [![npm](https://img.shields.io/npm/v/clipsfarm)](https://www.npmjs.com/package/clipsfarm) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Open-source, agent-native video clipping.** Point any number of AI agents at YouTube videos *or live streams*, and get ready-to-post viral shorts back: 9:16, a hook header, and word-by-word captions. Runs on your machine, with no API keys and no subscription.
 
-<p align="center"><img src="docs/demo.gif" alt="A clipswarm viral clip: a white header card reading 'Astronauts celebrate July 4th from 250 miles up' above the full video of three astronauts on the ISS, with word-by-word captions below" width="300"></p>
+<p align="center"><img src="docs/demo.gif" alt="A clipsfarm viral clip: a white header card reading 'Astronauts celebrate July 4th from 250 miles up' above the full video of three astronauts on the ISS, with word-by-word captions below" width="300"></p>
 
-<p align="center"><sub>Made with one command: <code>clipswarm clip https://youtu.be/75-H-i9ctkE 6 14.4 --viral --title "Astronauts celebrate July 4th from 250 miles up"</code><br>Footage: NASA (public domain). No endorsement implied.</sub></p>
+<p align="center"><sub>Made with one command: <code>clipsfarm clip https://youtu.be/75-H-i9ctkE 6 14.4 --viral --title "Astronauts celebrate July 4th from 250 miles up"</code><br>Footage: NASA (public domain). No endorsement implied.</sub></p>
 
 ```
 "Get me the 3 best moments from each of these 10 podcasts as shorts"
         │
         ├─ clipper agent 1 ─┐
-        ├─ clipper agent 2 ─┼─► clipswarm MCP ─► yt-dlp ─► ffmpeg ─► clips/*_viral.mp4
+        ├─ clipper agent 2 ─┼─► clipsfarm MCP ─► yt-dlp ─► ffmpeg ─► clips/*_viral.mp4
         └─ clipper agent N ─┘     shared queue, cached transcripts, retries
 ```
 
-## Why clipswarm
+## Why clipsfarm
 
-OpusClip-style apps decide for you what's "viral". clipswarm gives **your agent** the tools to decide, then does the production work:
+OpusClip-style apps decide for you what's "viral". clipsfarm gives **your agent** the tools to decide, then does the production work:
 
 - **Viral format built in**: 1080×1920, a hook header card, the **whole** video frame (never cropped or zoomed), and animated captions that highlight each word as it's spoken. The layout adapts to the source's shape.
 - **YouTube videos *and* live streams**: clip what just happened on a live stream (`start: -60, end: "now"`), or what aired at 8:41pm.
@@ -26,7 +26,7 @@ OpusClip-style apps decide for you what's "viral". clipswarm gives **your agent*
 - **Runs on autopilot**: give it a category and a schedule ("netflix stock, every 6h"), and it finds new videos, has AI pick the moments and write the hooks, and renders the clips in the background.
 - **Built for swarms**: dozens of parallel jobs across many videos and many simultaneous agents, all through one shared queue. Transcripts are fetched once per video, and one bad job never sinks a batch.
 - **Fast and frugal**: downloads only the seconds you clip (not the whole 3-hour stream), and uses hardware encoding on macOS.
-- **Works with any ffmpeg**: text is rendered by clipswarm itself, so stock builds without `drawtext`/`libass` (e.g. Homebrew's) work fine.
+- **Works with any ffmpeg**: text is rendered by clipsfarm itself, so stock builds without `drawtext`/`libass` (e.g. Homebrew's) work fine.
 
 ## Install
 
@@ -35,10 +35,16 @@ OpusClip-style apps decide for you what's "viral". clipswarm gives **your agent*
 ```bash
 brew install yt-dlp ffmpeg whisper-cpp     # macOS
 # Linux: pip install -U yt-dlp && sudo apt install ffmpeg   (+ whisper.cpp for live captions)
-npx -y clipswarm setup                     # checks everything; downloads the caption model (~140MB)
+npx -y clipsfarm setup                     # checks everything; downloads the caption model (~140MB)
 ```
 
 `whisper-cpp` is optional. Without it, everything works, but live-stream clips render without captions.
+
+### Migrating from clipswarm
+
+Install `clipsfarm` with `npx -y clipsfarm ...` or `npm install -g clipsfarm`. The existing `clipswarm` npm package and its history remain available, and the new package also provides the `clipswarm` command as a compatibility alias. Update MCP/Claude Code configurations to the `clipsfarm` package and plugin names when convenient; existing configuration names may remain as local aliases.
+
+Existing `CLIPSWARM_*` environment variables continue to work. Their `CLIPSFARM_*` equivalents take precedence when both are set. The new CLI reuses an existing `~/.clipswarm` watch-state directory and Whisper model cache when their new `clipsfarm` locations do not exist. `watch status`, `watch install`, and `watch uninstall` recognize the former macOS/Windows scheduler names; installing migrates the scheduler name without deleting watch data.
 
 > Keep yt-dlp up to date (`yt-dlp -U` / `brew upgrade yt-dlp`). YouTube regularly breaks older versions. This is the #1 cause of failures.
 
@@ -46,19 +52,19 @@ npx -y clipswarm setup                     # checks everything; downloads the ca
 
 | App | How |
 |---|---|
-| **Claude Code** (recommended, includes the `clipper` agent) | `/plugin marketplace add Shoberman2/clipswarm` then `/plugin install clipswarm@clipswarm` |
-| Claude Code (MCP only) | `claude mcp add clipswarm -- npx -y clipswarm mcp --out ./clips` |
+| **Claude Code** (recommended, includes the `clipper` agent) | `/plugin marketplace add Shoberman2/clipsfarm` then `/plugin install clipsfarm@clipsfarm` |
+| Claude Code (MCP only) | `claude mcp add clipsfarm -- npx -y clipsfarm mcp --out ./clips` |
 | **Claude Desktop** | Settings → Developer → Edit Config, add the JSON below |
-| **ChatGPT desktop app / Codex** | `codex mcp add clipswarm -- npx -y clipswarm mcp` (shared by Codex CLI, the IDE extension and the ChatGPT desktop app) |
+| **ChatGPT desktop app / Codex** | `codex mcp add clipsfarm -- npx -y clipsfarm mcp` (shared by Codex CLI, the IDE extension and the ChatGPT desktop app) |
 | Cursor | `~/.cursor/mcp.json`, JSON below |
-| VS Code | `code --add-mcp '{"name":"clipswarm","command":"npx","args":["-y","clipswarm","mcp"]}'` |
-| Gemini CLI | `gemini mcp add clipswarm npx -y clipswarm mcp` |
+| VS Code | `code --add-mcp '{"name":"clipsfarm","command":"npx","args":["-y","clipsfarm","mcp"]}'` |
+| Gemini CLI | `gemini mcp add clipsfarm npx -y clipsfarm mcp` |
 
 ```json
-{ "mcpServers": { "clipswarm": { "command": "npx", "args": ["-y", "clipswarm", "mcp", "--out", "/Users/you/clips"] } } }
+{ "mcpServers": { "clipsfarm": { "command": "npx", "args": ["-y", "clipsfarm", "mcp", "--out", "/Users/you/clips"] } } }
 ```
 
-> **Why not claude.ai or ChatGPT on the web?** Those only connect to *hosted* servers. Hosting a YouTube downloader means datacenter IP blocks, Terms of Service exposure, and shipping 50MB videos through a chat window. clipswarm runs locally, where all three problems disappear.
+> **Why not claude.ai or ChatGPT on the web?** Those only connect to *hosted* servers. Hosting a YouTube downloader means datacenter IP blocks, Terms of Service exposure, and shipping 50MB videos through a chat window. clipsfarm runs locally, where all three problems disappear.
 
 ## Use it
 
@@ -80,7 +86,7 @@ Each `clipper` agent reads its video's transcript, picks self-contained moments,
 | `captions` | `true` | Word-by-word captions, 1–3 words at a time, current word highlighted |
 | `accent` | `"#FFE600"` | Highlight colour |
 
-**The full frame is always shown.** clipswarm never crops or zooms, because what matters in a video (a spreadsheet, a chart, a second speaker) can be anywhere in the frame. The layout follows the source:
+**The full frame is always shown.** clipsfarm never crops or zooms, because what matters in a video (a spreadsheet, a chart, a second speaker) can be anywhere in the frame. The layout follows the source:
 
 | Source | Layout |
 |---|---|
@@ -106,13 +112,13 @@ Paste a link to a stream that's live right now (a `watch?v=` or a channel's `/li
 
 ## Watches: clips that find themselves
 
-Give clipswarm a category and a schedule. It searches YouTube for new videos, picks the best moments, and renders them as viral clips while you're away. A Mac notification appears when new clips land.
+Give clipsfarm a category and a schedule. It searches YouTube for new videos, picks the best moments, and renders them as viral clips while you're away. A Mac notification appears when new clips land.
 
 ```bash
-clipswarm watch add "netflix stock analysis" --every 6h          # what to look for, how often
-clipswarm watch install                                          # background job (launchd on macOS)
-clipswarm watch run --force                                      # or run it right now
-clipswarm watch inbox                                            # what it found and clipped
+clipsfarm watch add "netflix stock analysis" --every 6h          # what to look for, how often
+clipsfarm watch install                                          # background job (launchd on macOS)
+clipsfarm watch run --force                                      # or run it right now
+clipsfarm watch inbox                                            # what it found and clipped
 ```
 
 Or just ask your agent: *"Watch for new AI agent news videos every 12 hours and clip the best moments."* (MCP tools: `create_watch`, `list_watches`, `run_watch`, `get_inbox`, `update_inbox_item`, `delete_watch`, `watch_scheduler`.)
@@ -135,17 +141,17 @@ If YouTube's captions are missing or rate-limited, the watcher downloads just th
 | `--picker` | `auto` | `ai`, `heatmap` or `transcript` to force one |
 | `--live` | off | Also list streams that are live right now in the inbox |
 | `--no-auto` | off | Only collect videos; don't clip |
-| `--out` | `~/clipswarm/<id>` | Where clips go |
+| `--out` | `~/clipsfarm/<id>` | Where clips go |
 
-State lives in `~/.clipswarm/` (`CLIPSWARM_HOME` to move it). Each video is only processed once. On Linux, `watch install` prints a crontab line, and `clipswarm watch daemon` runs a foreground loop anywhere.
+State lives in `~/.clipsfarm/` (`CLIPSFARM_HOME` to move it; `CLIPSWARM_HOME` remains accepted). Each video is only processed once. On Linux, `watch install` prints a crontab line, and `clipsfarm watch daemon` runs a foreground loop anywhere.
 
 ## How it works
 
 1. **Find the moment.** The agent calls `get_video_info`, `search_transcript` and `get_transcript`. Transcripts come from YouTube's captions via yt-dlp and are cached.
 2. **Cut it.**
    - **Regular videos:** yt-dlp downloads only the requested section.
-   - **Live streams:** clipswarm reads YouTube's rolling HLS playlist (5-second segments with wall-clock stamps) and fetches just the segments covering your range.
-3. **Make it viral.** clipswarm gets word timings and draws the header and caption frames (font → vector paths → PNG). ffmpeg composites them with the full, uncropped video on a 9:16 canvas.
+   - **Live streams:** clipsfarm reads YouTube's rolling HLS playlist (5-second segments with wall-clock stamps) and fetches just the segments covering your range.
+3. **Make it viral.** clipsfarm gets word timings and draws the header and caption frames (font → vector paths → PNG). ffmpeg composites them with the full, uncropped video on a 9:16 canvas.
 4. **Share the machine.** Every job from every agent goes through one concurrency limiter, with retries for YouTube's intermittent 403s.
 
 Contributors: see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full walkthrough of the code.
@@ -165,13 +171,13 @@ Contributors: see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full walkth
 ## CLI
 
 ```bash
-clipswarm clip <url> 13:53 14:28 --viral --title "His best advice in 30 seconds"
-clipswarm clip <live-url> -60 now --viral --title "This just happened live"
-clipswarm clip <url> 1:23 1:58 --label raw-cut                    # plain clip
-clipswarm batch jobs.json --out clips                             # many jobs at once, writes clips/manifest.json
-clipswarm search <url> stay hungry
-clipswarm transcript <url>
-clipswarm setup
+clipsfarm clip <url> 13:53 14:28 --viral --title "His best advice in 30 seconds"
+clipsfarm clip <live-url> -60 now --viral --title "This just happened live"
+clipsfarm clip <url> 1:23 1:58 --label raw-cut                    # plain clip
+clipsfarm batch jobs.json --out clips                             # many jobs at once, writes clips/manifest.json
+clipsfarm search <url> stay hungry
+clipsfarm transcript <url>
+clipsfarm setup
 ```
 
 ## Scheduled watches
@@ -179,24 +185,24 @@ clipswarm setup
 Watches search YouTube for recently uploaded videos in a category and can clip their strongest moments. Video searches and clipping happen only when you run a watch or install the background scheduler; adding a watch only saves its settings.
 
 ```bash
-clipswarm watch add "AI research" --every 6h
-clipswarm watch list
-clipswarm watch run ai-research
-clipswarm watch inbox
-clipswarm watch remove ai-research
+clipsfarm watch add "AI research" --every 6h
+clipsfarm watch list
+clipsfarm watch run ai-research
+clipsfarm watch inbox
+clipsfarm watch remove ai-research
 ```
 
-Automatic clipping is on by default. The default `--picker auto` uses the local Claude Code CLI when available, then falls back to YouTube replay peaks or a transcript heuristic. That Claude CLI call uses its configured account and may consume its usage allowance; use `--picker heatmap` or `--picker transcript` to avoid it. Use `--no-auto` to put discovered videos in the inbox for an AI agent to review instead. Videos that cannot be picked automatically, plus live streams when `--live` is enabled, go to the inbox. `clipswarm watch install` opts into a macOS launchd job that checks for due watches every five minutes; `clipswarm watch uninstall` removes that job. Watch state is stored in `~/.clipswarm/state.json` (set `CLIPSWARM_HOME` to use another location).
+Automatic clipping is on by default. The default `--picker auto` uses the local Claude Code CLI when available, then falls back to YouTube replay peaks or a transcript heuristic. That Claude CLI call uses its configured account and may consume its usage allowance; use `--picker heatmap` or `--picker transcript` to avoid it. Use `--no-auto` to put discovered videos in the inbox for an AI agent to review instead. Videos that cannot be picked automatically, plus live streams when `--live` is enabled, go to the inbox. `clipsfarm watch install` opts into a macOS launchd job that checks for due watches every five minutes; `clipsfarm watch uninstall` removes that job. Watch state is stored in `~/.clipsfarm/state.json` (set `CLIPSFARM_HOME` to use another location; `CLIPSWARM_HOME` remains accepted).
 
 ## Configuration
 
 | Env var | Default | |
 |---|---|---|
-| `CLIPSWARM_CONCURRENCY` | `min(6, cpus)` | Max simultaneous download/encode jobs, shared across all callers; must be a positive integer |
-| `CLIPSWARM_MAX_CLIP_SEC` | `600` | Guards against accidentally downloading whole videos; must be greater than 0 |
-| `CLIPSWARM_RETRIES` | `3` | Retries for transient YouTube errors; must be a non-negative integer |
-| `CLIPSWARM_WHISPER_MODEL` | `~/.cache/clipswarm/ggml-base.en.bin` | Any whisper.cpp model, e.g. a multilingual one |
-| `CLIPSWARM_FONT` | bundled Montserrat Black | Any TTF/OTF for headers and captions |
+| `CLIPSFARM_CONCURRENCY` | `min(6, cpus)` | Max simultaneous download/encode jobs, shared across all callers; must be a positive integer (`CLIPSWARM_CONCURRENCY` alias) |
+| `CLIPSFARM_MAX_CLIP_SEC` | `600` | Guards against accidentally downloading whole videos; must be greater than 0 (`CLIPSWARM_MAX_CLIP_SEC` alias) |
+| `CLIPSFARM_RETRIES` | `3` | Retries for transient YouTube errors; must be a non-negative integer (`CLIPSWARM_RETRIES` alias) |
+| `CLIPSFARM_WHISPER_MODEL` | `~/.cache/clipsfarm/ggml-base.en.bin` | Any whisper.cpp model, e.g. a multilingual one (`CLIPSWARM_WHISPER_MODEL` alias) |
+| `CLIPSFARM_FONT` | bundled Montserrat Black | Any TTF/OTF for headers and captions (`CLIPSWARM_FONT` alias) |
 
 ## Platform support
 
@@ -210,11 +216,11 @@ CI runs the test suite (including a real ffmpeg render) on all three.
 
 ## Known limitations
 
-- **YouTube changes break downloaders.** When clips start failing, update yt-dlp first (`yt-dlp -U`). clipswarm's error messages say so.
-- **Heavy use can get rate-limited.** YouTube sometimes returns HTTP 429 for captions after many requests. clipswarm retries, and falls back to transcribing audio locally with whisper.cpp.
+- **YouTube changes break downloaders.** When clips start failing, update yt-dlp first (`yt-dlp -U`). clipsfarm's error messages say so.
+- **Heavy use can get rate-limited.** YouTube sometimes returns HTTP 429 for captions after many requests. clipsfarm retries, and falls back to transcribing audio locally with whisper.cpp.
 - **Live streams:** only about the last hour is available, and there's no transcript while live.
 - **"Most replayed" data** only appears on videos a few days old, so watches use AI picking first.
-- **Wide videos are small on a phone** because clipswarm never crops. This is deliberate: nothing relevant gets cut off.
+- **Wide videos are small on a phone** because clipsfarm never crops. This is deliberate: nothing relevant gets cut off.
 
 ## Responsible use
 

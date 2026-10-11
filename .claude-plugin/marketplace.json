@@ -1,16 +1,16 @@
 {
-  "name": "clipswarm",
+  "name": "clipsfarm",
   "owner": {
     "name": "Shoberman2"
   },
   "plugins": [
     {
-      "name": "clipswarm",
-      "source": "./plugins/clipswarm",
+      "name": "clipsfarm",
+      "source": "./plugins/clipsfarm",
       "description": "Clip YouTube videos and livestreams into viral shorts with parallel agents"
     }
   ],
   "metadata": {
-    "description": "clipswarm: parallel YouTube & livestream clipping into viral shorts for AI agents"
+    "description": "clipsfarm: parallel YouTube & livestream clipping into viral shorts for AI agents"
   }
 }

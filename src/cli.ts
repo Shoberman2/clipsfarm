@@ -5,33 +5,34 @@ import { fileURLToPath } from "node:url";
 import { createClips, formatTime, hasCommand, getTranscript, getVideoInfo, searchTranscript, type ClipJob } from "./core.js";
 import { startMcpServer } from "./mcp.js";
 
-const HELP = `clipswarm — parallel YouTube clipping for humans and AI agents
+const HELP = `clipsfarm — parallel YouTube clipping for humans and AI agents
 
 Usage:
-  clipswarm clip <url> <start> <end> [--label name] [--out dir]
+  clipsfarm clip <url> <start> <end> [--label name] [--out dir]
       [--viral] [--title "hook text"] [--no-captions] [--accent "#FFE600"] [--background "#000000"|blur]
       [--vertical] [--precise]
-  clipswarm batch <jobs.json> [--out dir]       Run many clips concurrently
-  clipswarm info <url>                          Title, duration, chapters
-  clipswarm transcript <url> [--lang en]        Timestamped transcript
-  clipswarm search <url> <query...>             Find where something is said
-  clipswarm mcp [--out dir]                     Start the MCP server (stdio)
-  clipswarm setup                               Download the whisper model for live-stream captions
+  clipsfarm batch <jobs.json> [--out dir]       Run many clips concurrently
+  clipsfarm info <url>                          Title, duration, chapters
+  clipsfarm transcript <url> [--lang en]        Timestamped transcript
+  clipsfarm search <url> <query...>             Find where something is said
+  clipsfarm mcp [--out dir]                     Start the MCP server (stdio)
+  clipsfarm setup                               Download the whisper model for live-stream captions
 
 Watches (find new videos on a schedule and auto-clip them):
-  clipswarm watch add "<category>" --every 6h [--max-age 72h] [--min-views 1000]
+  clipsfarm watch add "<category>" --every 6h [--max-age 72h] [--min-views 1000]
       [--clips 2] [--seconds 45] [--videos 3] [--picker auto|ai|heatmap|transcript]
       [--plain] [--no-auto] [--live] [--name id] [--out dir]
-  clipswarm watch list | remove <id> | run [id] [--force] | inbox [--status s]
-  clipswarm watch install | uninstall | status    Background job (launchd on macOS)
-  clipswarm watch daemon                          Or keep a foreground loop running
+  clipsfarm watch list | remove <id> | run [id] [--force] | inbox [--status s]
+  clipsfarm watch install | uninstall | status    Background job (launchd on macOS)
+  clipsfarm watch daemon                          Or keep a foreground loop running
 
 jobs.json: [{ "url": "...", "start": "1:23", "end": "1:58", "label": "hook", "vertical": true }, ...]
 
-Live streams: times are relative to now, e.g. \`clipswarm clip <live-url> -60 now\` = the last minute.
+Live streams: times are relative to now, e.g. \`clipsfarm clip <live-url> -60 now\` = the last minute.
 Negative times on regular videos count back from the end.
 
-Env: CLIPSWARM_CONCURRENCY (default min(6, cpus)), CLIPSWARM_MAX_CLIP_SEC (default 600)`;
+Env: CLIPSFARM_CONCURRENCY (default min(6, cpus)), CLIPSFARM_MAX_CLIP_SEC (default 600)
+Legacy CLIPSWARM_* environment names and the clipswarm command remain supported.`;
 
 const BOOLEAN_FLAGS = new Set(["--vertical", "--precise", "--viral", "--no-captions", "--plain", "--no-auto", "--live", "--force"]);
 
@@ -61,7 +62,7 @@ async function main() {
 
     case "clip": {
       const [url, start, end] = pos;
-      if (!url || start === undefined || end === undefined) throw new Error("usage: clipswarm clip <url> <start> <end>");
+      if (!url || start === undefined || end === undefined) throw new Error("usage: clipsfarm clip <url> <start> <end>");
       const str = (k: string) => (typeof flags[k] === "string" ? (flags[k] as string) : undefined);
       const job: ClipJob = {
         url, start, end,
@@ -78,7 +79,7 @@ async function main() {
     }
 
     case "batch": {
-      if (!pos[0]) throw new Error("usage: clipswarm batch <jobs.json>");
+      if (!pos[0]) throw new Error("usage: clipsfarm batch <jobs.json>");
       const jobs = JSON.parse(await readFile(pos[0], "utf8")) as ClipJob[];
       return report(await createClips(jobs, outDir), outDir);
     }
@@ -116,7 +117,7 @@ async function watchCmd(pos: string[], flags: Record<string, string | true>) {
   const [sub, arg] = pos;
   switch (sub) {
     case "add": {
-      if (!arg) throw new Error('usage: clipswarm watch add "<category>" --every 6h');
+      if (!arg) throw new Error('usage: clipsfarm watch add "<category>" --every 6h');
       const maxAge = str("max-age");
       const watch = await w.addWatch({
         query: arg,
@@ -135,13 +136,13 @@ async function watchCmd(pos: string[], flags: Record<string, string | true>) {
       });
       console.log(`✓ Watching "${watch.query}" every ${watch.everyMinutes} min (id: ${watch.id})`);
       const { installed } = await w.schedulerStatus();
-      if (!installed) console.log("  Start the background job with: clipswarm watch install   (or run now: clipswarm watch run --force)");
+      if (!installed) console.log("  Start the background job with: clipsfarm watch install   (or run now: clipsfarm watch run --force)");
       return;
     }
     case "list":
     case undefined: {
       const list = await w.listWatches();
-      if (!list.length) return console.log('No watches. Add one: clipswarm watch add "ai news" --every 6h');
+      if (!list.length) return console.log('No watches. Add one: clipsfarm watch add "ai news" --every 6h');
       for (const x of list)
         console.log(`${x.id}  "${x.query}"  every ${x.everyMinutes}m  last: ${x.lastRunAt ?? "never"}  next: ${x.nextRunAt}`);
       console.log(`\nScheduler: ${(await w.schedulerStatus()).detail}`);
@@ -172,7 +173,7 @@ async function watchCmd(pos: string[], flags: Record<string, string | true>) {
     case "status":
       return console.log((await w.schedulerStatus()).detail);
     case "daemon":
-      console.log("clipswarm watch daemon: checking every minute (Ctrl+C to stop)");
+      console.log("clipsfarm watch daemon: checking every minute (Ctrl+C to stop)");
       for (;;) {
         for (const r of await w.runDue()) console.log(`[${new Date().toISOString()}] ${r.watchId}: ${r.found} new, ${r.clipped} clips${r.errors.length ? `, ${r.errors.length} errors` : ""}`);
         await new Promise((r) => setTimeout(r, 60_000));
