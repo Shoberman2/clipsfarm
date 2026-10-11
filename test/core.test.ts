@@ -9,15 +9,31 @@ for (const [name, value, message] of [
   ["CLIPSWARM_RETRIES", "-1", "a non-negative integer"],
 ] as const) {
   test(`${name} rejects invalid values with a clear startup error`, () => {
+    const env = { ...process.env, [name]: value };
+    delete env[name.replace(/^CLIPSWARM_/, "CLIPSFARM_")];
     const result = spawnSync(
       process.execPath,
       ["--import", "tsx", "--input-type=module", "-e", "await import('./src/core.ts')"],
-      { cwd: process.cwd(), encoding: "utf8", env: { ...process.env, [name]: value } },
+      { cwd: process.cwd(), encoding: "utf8", env },
     );
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, new RegExp(`${name} must be ${message}`));
   });
 }
+
+test("new clipsfarm settings take precedence over legacy clipswarm settings", () => {
+  const result = spawnSync(
+    process.execPath,
+    ["--import", "tsx", "--input-type=module", "-e", "const { createClip } = await import('./src/core.ts'); console.log((await createClip({url:'https://youtu.be/x',start:0,end:2}, '/tmp')).error)"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: { ...process.env, CLIPSFARM_MAX_CLIP_SEC: "1", CLIPSWARM_MAX_CLIP_SEC: "10" },
+    },
+  );
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /max is 1s/);
+});
 
 test("parseTime accepts seconds and timestamps", () => {
   assert.equal(parseTime(83), 83);
@@ -160,7 +176,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 test("resolveCommand finds executables on PATH (incl. Windows .cmd shims) without `which`", () => {
-  const dir = mkdtempSync(join(tmpdir(), "clipswarm-bin-"));
+  const dir = mkdtempSync(join(tmpdir(), "clipsfarm-bin-"));
   const name = process.platform === "win32" ? "fakebin.cmd" : "fakebin";
   writeFileSync(join(dir, name), process.platform === "win32" ? "@echo off\r\n" : "#!/bin/sh\n");
   chmodSync(join(dir, name), 0o755);

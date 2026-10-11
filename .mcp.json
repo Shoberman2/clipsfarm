@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "clipswarm": {
+    "clipsfarm": {
       "command": "node",
       "args": ["dist/cli.js", "mcp", "--out", "clips"]
     }

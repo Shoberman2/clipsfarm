@@ -1,8 +1,8 @@
 # Architecture
 
-How clipswarm is put together, for people who want to change it. Line references are to `src/` as of v0.1.0. If they drift, search for the function name.
+How clipsfarm is put together, for people who want to change it. Line references are to `src/` as of v0.1.0. If they drift, search for the function name.
 
-clipswarm is small on purpose: about 1,300 lines of TypeScript that coordinate three external programs (yt-dlp, ffmpeg, and optionally whisper.cpp). It has no LLM inside. **Your agent decides what to clip. clipswarm makes the cut.**
+clipsfarm is small on purpose: about 1,300 lines of TypeScript that coordinate three external programs (yt-dlp, ffmpeg, and optionally whisper.cpp). It has no LLM inside. **Your agent decides what to clip. clipsfarm makes the cut.**
 
 ## The big picture
 
@@ -17,7 +17,7 @@ clipswarm is small on purpose: about 1,300 lines of TypeScript that coordinate t
                                          one shared Semaphore ───────┘      ──► clips/*.mp4
 ```
 
-- An **agent** (for example the `clipper` subagent) calls MCP tools. Claude Code starts clipswarm as a child process (`clipswarm mcp`) and talks to it over stdin/stdout.
+- An **agent** (for example the `clipper` subagent) calls MCP tools. Claude Code starts clipsfarm as a child process (`clipsfarm mcp`) and talks to it over stdin/stdout.
 - **`mcp.ts`** validates arguments and hands them to `core.ts`.
 - **`core.ts`** fetches metadata and captions, works out exactly which bytes to download, and runs yt-dlp/ffmpeg.
 - **`viral.ts`** turns a plain clip into a 1080x1920 short.
@@ -25,7 +25,7 @@ clipswarm is small on purpose: about 1,300 lines of TypeScript that coordinate t
 
 ## Modules
 
-### `src/cli.ts`: entry point (the `clipswarm` bin)
+### `src/cli.ts`: entry point (the `clipsfarm` bin)
 
 - `main` (`src/cli.ts:43`) dispatches subcommands: `clip`, `batch`, `info`, `transcript`, `search`, `mcp`, `setup`.
 - `parseArgs` (`src/cli.ts:29`) is a hand-rolled flag parser. `BOOLEAN_FLAGS` (`src/cli.ts:27`) lists flags that never take a value. Without it, `--viral -60 now` would read `-60` as the flag's value.
@@ -62,7 +62,7 @@ clipswarm is small on purpose: about 1,300 lines of TypeScript that coordinate t
 
 | Area | Key functions |
 |---|---|
-| Font | `getFont` (`:39`) loads `assets/fonts/Montserrat-Black.ttf` (override with `CLIPSWARM_FONT`). `sanitize` (`:48`) drops glyphs the font lacks, such as emoji |
+| Font | `getFont` (`:39`) loads `assets/fonts/Montserrat-Black.ttf` (override with `CLIPSFARM_FONT`; former `CLIPSWARM_FONT` is accepted). `sanitize` (`:48`) drops glyphs the font lacks, such as emoji |
 | Layout | `wrap` (`:59`), `fitText` (`:75`) steps the size down 2px at a time until the text fits, then truncates with `…` |
 | Rasterising | `pathAt` (`:88`) turns glyphs into SVG path data. `png` (`:91`) renders SVG to PNG with resvg |
 | Images | `renderHeader` (`:94`) draws a white rounded card with a drop shadow. `renderCaption` (`:119`) draws a ≤2-line caption with the active word in the accent colour |
@@ -76,7 +76,7 @@ All three cases start the same way. The agent calls `create_clips`, `mcp.ts` cal
 
 ### (a) Plain clip from a regular video
 
-1. **Cheap validation first.** If both times are relative, `createClip` parses them and runs `checkLength` (`src/core.ts:370`) before any network call. A reversed range or a range over `CLIPSWARM_MAX_CLIP_SEC` (default 600) fails immediately. The test suite relies on this (`test/core.test.ts:21`).
+1. **Cheap validation first.** If both times are relative, `createClip` parses them and runs `checkLength` (`src/core.ts:370`) before any network call. A reversed range or a range over `CLIPSFARM_MAX_CLIP_SEC` (default 600; `CLIPSWARM_MAX_CLIP_SEC` is accepted as an alias) fails immediately. The test suite relies on this (`test/core.test.ts:21`).
 2. **Metadata.** `getRawInfo` runs `yt-dlp -J --no-playlist` once per URL. The result is cached and shared with every other caller.
 3. **Resolve times.** Negative times count back from `info.duration` (`src/core.ts:214`). `"now"` and ISO timestamps are rejected because they only make sense for live streams.
 4. **Section-only download** (`src/core.ts:408`), inside one limiter slot:
@@ -88,7 +88,7 @@ All three cases start the same way. The agent calls `create_clips`, `mcp.ts` cal
 
 ### (b) Clip from a livestream
 
-When `info.is_live` is set, `createClip` hands off to `createLiveClip` (`src/core.ts:558`). yt-dlp isn't used for the download here. clipswarm reads YouTube's HLS DVR window directly.
+When `info.is_live` is set, `createClip` hands off to `createLiveClip` (`src/core.ts:558`). yt-dlp isn't used for the download here. clipsfarm reads YouTube's HLS DVR window directly.
 
 1. **Pick renditions.** `pickLiveFormats` (`src/core.ts:524`) takes the highest m3u8 video rendition at or below `maxHeight`. YouTube's live video renditions are usually video-only, so it pairs them with the best audio-only rendition. That audio's `acodec` is often reported as `null` rather than `"none"`, which is why the filter tests `!== "none"`.
 2. **Fetch playlists.** Video and audio playlists are fetched in parallel. `parsePlaylist` (`src/core.ts:473`) turns each one into segments with:
@@ -122,7 +122,7 @@ When `info.is_live` is set, `createClip` hands off to `createLiveClip` (`src/cor
      - Manual captions have no word timings, so their words are spread across the line weighted by length.
      - Overlapping auto-caption events are clamped so each word ends where the next begins.
      - Words are re-based so the clip starts at 0.
-   - **Live clips, or no captions:** `transcribeLocal` (`src/viral.ts:216`) extracts 16kHz mono WAV with ffmpeg and runs `whisper-cli -ml 1 -sow -oj` (one word per segment, JSON output). Markers like `[BLANK_AUDIO]` and `♪♪` are filtered out. If whisper or the model is missing it returns `undefined`, and the clip renders without captions plus a `warnings` entry telling you to run `clipswarm setup`.
+   - **Live clips, or no captions:** `transcribeLocal` (`src/viral.ts:216`) extracts 16kHz mono WAV with ffmpeg and runs `whisper-cli -ml 1 -sow -oj` (one word per segment, JSON output). Markers like `[BLANK_AUDIO]` and `♪♪` are filtered out. If whisper or the model is missing it returns `undefined`, and the clip renders without captions plus a `warnings` entry telling you to run `clipsfarm setup`.
 3. **Render** (`renderViral`, `src/viral.ts:268`, inside one limiter slot):
    - **Geometry.** `computeLayout` (`src/viral.ts:285`) scales the whole frame to fit 1080x1920 at its own aspect ratio and never crops. If the header, video and captions fit stacked, it centres them as a group (wide sources). Otherwise it centres the video and lays the text over it (tall sources). The background is padded solid colour (default black); `background: "blur"` is opt-in.
    - **Header.** `renderHeader` returns a PNG. It's added with `-loop 1` and overlaid above the video with `shortest=1`.
@@ -132,7 +132,7 @@ When `info.is_live` is set, `createClip` hands off to `createLiveClip` (`src/cor
 
 ## Concurrency and resilience
 
-- **One shared `Semaphore`** (`src/core.ts:110`, `limiter` at `:124`). This is a module-level singleton, so every MCP call from every agent shares it. The default is `min(6, max(2, cpus))`, overridable with `CLIPSWARM_CONCURRENCY`. It wraps:
+- **One shared `Semaphore`** (`src/core.ts:110`, `limiter` at `:124`). This is a module-level singleton, so every MCP call from every agent shares it. The default is `min(6, max(2, cpus))`, overridable with `CLIPSFARM_CONCURRENCY` (`CLIPSWARM_CONCURRENCY` alias). It wraps:
   - `yt-dlp -J`
   - each VOD download + vertical fit
   - each live segment download+cut
@@ -143,14 +143,14 @@ When `info.is_live` is set, `createClip` hands off to `createLiveClip` (`src/cor
   - `infoCache` (`src/core.ts:211`) keeps VOD metadata for the life of the process. Live entries expire after `LIVE_INFO_TTL_MS` = 20s (`:208`), because the DVR window moves and the HLS URLs expire.
   - `transcriptCache` (`:236`) is keyed by `url::lang::prefer`.
   - Both caches delete an entry when its promise rejects, so a failure isn't cached.
-- **`withRetry`** (`src/core.ts:158`) retries up to `CLIPSWARM_RETRIES` (default 3) times with exponential backoff plus jitter (1s, 2s, 4s, + up to 0.5s). It wraps yt-dlp calls and every individual HLS segment fetch, because YouTube intermittently 403s single requests.
+- **`withRetry`** (`src/core.ts:158`) retries up to `CLIPSFARM_RETRIES` (default 3; `CLIPSWARM_RETRIES` alias) times with exponential backoff plus jitter (1s, 2s, 4s, + up to 0.5s). It wraps yt-dlp calls and every individual HLS segment fetch, because YouTube intermittently 403s single requests.
 - **One bad job never sinks a batch.** `createClip` and `createViralClip` catch everything and return `{ ok: false, error }`. `createClips` is therefore a `Promise.all` that doesn't reject, and the agent gets a result per job. This is a project rule (see CONTRIBUTING.md): new failure modes must surface as a per-job `error` string.
 
 ## Design decisions (and why)
 
-- **Text is drawn by clipswarm, not by ffmpeg.** Homebrew's ffmpeg, like many builds, ships without libfreetype/libass, so `drawtext` and `subtitles` aren't available. clipswarm converts font glyphs to vector paths with opentype.js, wraps them in SVG, rasterises with resvg (`loadSystemFonts: false`, so output is identical on every machine), and overlays PNGs. That works with any ffmpeg.
+- **Text is drawn by clipsfarm, not by ffmpeg.** Homebrew's ffmpeg, like many builds, ships without libfreetype/libass, so `drawtext` and `subtitles` aren't available. clipsfarm converts font glyphs to vector paths with opentype.js, wraps them in SVG, rasterises with resvg (`loadSystemFonts: false`, so output is identical on every machine), and overlays PNGs. That works with any ffmpeg.
 - **opentype.js stays on 1.x** (`^1.3.4`, which excludes 2.0). 2.0 emits `NaN` coordinates in some glyph paths, which corrupts the SVG. `test/core.test.ts:69` guards against this regression across many x positions and sizes.
-- **Node is yt-dlp's JS runtime.** YouTube now requires running JavaScript to get stream URLs, and yt-dlp only enables Deno by default. `ytdlp()` (`src/core.ts:175`) checks once whether yt-dlp supports `--js-runtimes` and, if so, passes `node:<process.execPath>`. Node is guaranteed to be present because clipswarm is running on it.
+- **Node is yt-dlp's JS runtime.** YouTube now requires running JavaScript to get stream URLs, and yt-dlp only enables Deno by default. `ytdlp()` (`src/core.ts:175`) checks once whether yt-dlp supports `--js-runtimes` and, if so, passes `node:<process.execPath>`. Node is guaranteed to be present because clipsfarm is running on it.
 - **Live clips are stream-copied by default.** YouTube live segments are about 5s long and each begins on a keyframe, so a copy cut at a segment boundary is clean and almost instant. Re-encoding 720p60+ is slow. Accuracy is opt-in with `precise`, and the returned `live.from` is honest about the real start.
 - **Live audio is matched by sequence number,** not by timestamp, because the two playlists can begin at different points.
 - **Section-only VOD downloads** use `--download-sections` plus `--force-keyframes-at-cuts`, trading a small re-encode at the edges for not downloading hours of video.
@@ -168,11 +168,11 @@ When `info.is_live` is set, `createClip` hands off to `createLiveClip` (`src/cor
 
 ## Distribution
 
-- **npm package** `clipswarm`: `bin` is `dist/cli.js`, and the package ships `dist` and `assets`, which includes the font.
+- **npm package** `clipsfarm`: `bin` includes `clipsfarm` and the `clipswarm` compatibility alias, both targeting `dist/cli.js`; the package ships `dist` and `assets`, which includes the font.
 - **`.mcp.json`** runs the local build (`node dist/cli.js mcp`) when the repo is opened in Claude Code.
-- **Claude Code plugin.** `.claude-plugin/marketplace.json` points to `plugins/clipswarm/`. Its `plugin.json` starts the server with `npx -y clipswarm mcp --out ./clips` and bundles its own copy of the `clipper` agent.
-  - The two `clipper.md` files differ only in tool names (`mcp__clipswarm__*` versus `mcp__plugin_clipswarm_clipswarm__*`). Keep their prompts in sync.
-- **`server.json`** is the MCP registry entry (`io.github.Shoberman2/clipswarm`, stdio).
+- **Claude Code plugin.** `.claude-plugin/marketplace.json` points to `plugins/clipsfarm/`. Its `plugin.json` starts the server with `npx -y clipsfarm mcp --out ./clips` and bundles its own copy of the `clipper` agent.
+  - The two `clipper.md` files differ only in tool names (`mcp__clipsfarm__*` versus `mcp__plugin_clipsfarm_clipsfarm__*`). Keep their prompts in sync.
+- **`server.json`** is the MCP registry entry (`io.github.Shoberman2/clipsfarm`, stdio).
 - **Versions.** `0.1.0` appears in `package.json`, `server.json`, `plugin.json` and the `McpServer` constructor (`src/mcp.ts:17`). Bump all four together.
 
 ## Known limitations
@@ -189,16 +189,16 @@ When `info.is_live` is set, `createClip` hands off to `createLiveClip` (`src/cor
 ## Where to add things
 
 - **New caption styles.** Add a field to `ViralOptions` (`src/viral.ts:18`), `ClipJob` and the zod schema. Branch in `renderCaption` (the drawing) and/or `buildCaptionFrames` (the chunking and timing). The concat-demuxer pipeline doesn't care what the PNGs look like. For new header looks, edit `renderHeader`.
-- **New fonts.** Drop the `.ttf` into `assets/fonts/` (with its licence) or point `CLIPSWARM_FONT` at it.
+- **New fonts.** Drop the `.ttf` into `assets/fonts/` (with its licence) or point `CLIPSFARM_FONT` at it (`CLIPSWARM_FONT` remains accepted).
 - **New MCP tools.** Register them in `startMcpServer`. Return compact text, and route errors through `fail`.
 - **New sources** (local files, other sites). Branch early in `createClip` next to the `is_live` check. Keep the "return `{ ok: false }`, never throw" contract.
 - **Anything slow or external.** Run it through `limiter.run`, and wrap flaky network calls in `withRetry`.
 
 ## Watches (`src/watch.ts`, `src/pick.ts`)
 
-Scheduled discovery. A watch is a YouTube search plus filters, stored in `~/.clipswarm/state.json` along with the per-watch list of seen video ids and an inbox. Every write goes through `update()`, a read-modify-write under a `mkdir` lock directory (stale after 2 min), so the launchd job and the MCP server can't clobber each other.
+Scheduled discovery. A watch is a YouTube search plus filters, stored in `~/.clipsfarm/state.json` along with the per-watch list of seen video ids and an inbox. If the new location does not exist but the former `~/.clipswarm` store does, the app continues using that store in place. Every write goes through `update()`, a read-modify-write under a `mkdir` lock directory (stale after 2 min), so the launchd job and the MCP server can't clobber each other.
 
-Scheduling is stateless: `runDue()` runs every watch whose `lastRunAt + everyMinutes` has passed. Anything can drive it: launchd (`installScheduler` writes `~/Library/LaunchAgents/dev.clipswarm.watch.plist`, which runs `watch run` every 5 min with the installer's `PATH`), cron, `watch daemon`, or an agent calling `run_watch`.
+Scheduling is stateless: `runDue()` runs every watch whose `lastRunAt + everyMinutes` has passed. Anything can drive it: launchd (`installScheduler` writes `~/Library/LaunchAgents/dev.clipsfarm.watch.plist`, which runs `watch run` every 5 min with the installer's `PATH`), cron, `watch daemon`, or an agent calling `run_watch`.
 
 One run (`runWatch`):
 

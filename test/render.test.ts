@@ -16,7 +16,7 @@ const hasFfmpeg = (() => {
 })();
 
 test("renderViral produces a 1080x1920 clip with audio", { skip: !hasFfmpeg && "ffmpeg not installed" }, async () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "clipswarm-test-"));
+  const dir = mkdtempSync(path.join(os.tmpdir(), "clipsfarm-test-"));
   const src = path.join(dir, "src.mp4");
   execFileSync("ffmpeg", [
     "-y", "-loglevel", "error",
