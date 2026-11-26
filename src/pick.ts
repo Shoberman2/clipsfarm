@@ -308,16 +308,56 @@ export function snapToWords(m: Moment, words: Word[], windowSec = 20): Moment {
   return end - start >= 5 ? { ...m, start, end } : m;
 }
 
-/** Keeps the strongest non-overlapping candidates that clear `minScore`, in time order. */
+/** Words that pad the start of a clip without saying anything. */
+const FILLER = new Set(["and", "so", "uh", "um", "uhm", "erm", "yeah", "well", "okay", "ok", "like"]);
+const FILLER_PAIRS = new Set(["you know", "for example", "i mean"]);
+
+/**
+ * Moves a clip's start past leading filler ("And so, uh, they found...",
+ * "For example, I now know...") so it opens on real words. Shifts at most 3s.
+ */
+export function trimLeadingFiller(m: Moment, words: Word[]): Moment {
+  let i = words.findIndex((w) => w.start >= m.start - 0.05);
+  if (i < 0) return m;
+  const first = i;
+  for (let n = 0; n < 5 && i < words.length; n++) {
+    const t = tokens(words[i].text).join(" ");
+    const pair = i + 1 < words.length ? `${t} ${tokens(words[i + 1].text).join(" ")}` : "";
+    if (FILLER_PAIRS.has(pair)) i += 2;
+    else if (FILLER.has(t)) i += 1;
+    else break;
+  }
+  if (i === first || i >= words.length || words[i].start - m.start > 3) return m;
+  const start = Math.max(words[i].start - 0.1, words[i - 1].end);
+  return m.end - start >= 8 ? { ...m, start } : m;
+}
+
+/** Picks closer than this are treated as the same stretch of the video. */
+const MIN_GAP_SEC = 30;
+
+/**
+ * Keeps the strongest candidates that clear `minScore`, in time order. Picks
+ * stay at least MIN_GAP_SEC apart, and on equal scores a kind of moment not
+ * picked yet wins, so three clips aren't three beats of the same story.
+ */
 export function selectBest(cands: Moment[], count: number, clipSec: number, minScore = MIN_SCORE): Moment[] {
   const max = maxClipSec(clipSec) + 10;
   const ok = cands
     .filter((m) => (m.score ?? 0) >= minScore && m.end - m.start >= 8 && m.end - m.start <= max)
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const near = (a: Moment, b: Moment) => a.start < b.end + MIN_GAP_SEC && a.end > b.start - MIN_GAP_SEC;
   const picks: Moment[] = [];
-  for (const m of ok) {
-    if (picks.length >= count) break;
-    if (!picks.some((p) => m.start < p.end && m.end > p.start)) picks.push(m);
+  while (picks.length < count) {
+    const kinds = new Set(picks.map((p) => p.kind));
+    let best: Moment | undefined;
+    for (const m of ok) {
+      if (picks.some((p) => p === m || near(m, p))) continue;
+      const better =
+        !best || (m.score ?? 0) > (best.score ?? 0) || ((m.score ?? 0) === (best.score ?? 0) && !kinds.has(m.kind) && kinds.has(best.kind));
+      if (better) best = m;
+    }
+    if (!best) break;
+    picks.push(best);
   }
   return picks.sort((a, b) => a.start - b.start);
 }
@@ -347,7 +387,7 @@ export function finishPicks(texts: string[], words: Word[], duration: number, co
   }
   if (candidates.length && !candidates.some((m) => m.score !== undefined)) throw new Error("AI picker didn't score its candidates.");
   const snapped = candidates.map((m) => {
-    const c = snapToWords(m, words);
+    const c = trimLeadingFiller(snapToWords(m, words), words);
     return duration > 0 && c.end > duration ? { ...c, end: duration } : c;
   });
   const moments = selectBest(snapped, count, clipSec);

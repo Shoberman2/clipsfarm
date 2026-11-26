@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildPickPrompt, chunkSegments, cleanHook, finishPicks, maxClipSec, MIN_SCORE, parsePicks, pickFromTranscript, selectBest, snapToWords } from "../src/pick.js";
+import { buildPickPrompt, chunkSegments, cleanHook, finishPicks, maxClipSec, MIN_SCORE, parsePicks, pickFromTranscript, selectBest, snapToWords, trimLeadingFiller } from "../src/pick.js";
 
 const segs = Array.from({ length: 120 }, (_, i) => ({
   start: i * 5,
@@ -54,10 +54,10 @@ test("selectBest drops candidates under the bar, ranks by score and returns them
     { start: 500, end: 530, score: MIN_SCORE - 1 }, // boring
     { start: 600, end: 607, score: 10 }, // too short
     { start: 700, end: 900, score: 10 }, // too long for a 45s target
-    { start: 50, end: 80, score: 7 },
+    { start: 20, end: 50, score: 7 },
   ];
   assert.deepEqual(selectBest(c, 2, 45).map((m) => m.start), [100, 300]);
-  assert.deepEqual(selectBest(c, 5, 45).map((m) => m.start), [50, 100, 300]);
+  assert.deepEqual(selectBest(c, 5, 45).map((m) => m.start), [20, 100, 300]);
   assert.deepEqual(selectBest([{ start: 1, end: 30, score: 4 }], 2, 45), []);
   assert.deepEqual(selectBest([{ start: 1, end: 30 }], 2, 45), []); // unscored never clears the bar
 });
@@ -197,4 +197,26 @@ test("parsePicks keeps a cleaned post description and the prompt carries its rul
   assert.match(p, /under 150 characters/);
   assert.match(p, /clipswarm adds the credit line itself/);
   assert.match(p, /"description": "<post text>"/);
+});
+
+test("selectBest spreads picks out and prefers a new kind of moment on a tie", () => {
+  const c = [
+    { start: 200, end: 260, score: 8, kind: "surprise" },
+    { start: 877, end: 936, score: 7, kind: "story" },
+    { start: 946, end: 992, score: 7, kind: "story" }, // 10s after the last one: same stretch
+    { start: 2169, end: 2238, score: 7, kind: "story" },
+    { start: 4442, end: 4493, score: 7, kind: "insight" },
+  ];
+  assert.deepEqual(selectBest(c, 3, 45).map((m) => m.start), [200, 877, 4442]);
+});
+
+test("trimLeadingFiller opens the clip on real words", () => {
+  const words = w("And so, uh, they found the cheapest boarding school in America for us that year", 100, 0.5);
+  const m = trimLeadingFiller({ start: 100, end: 110 }, words);
+  assert.ok(Math.abs(m.start - 101.5) < 1e-9, `start ${m.start}`); // "they", after "And so, uh,"
+  const ex = w("For example, I now know how hard it is to build this company from scratch", 200, 0.5);
+  assert.ok(Math.abs(trimLeadingFiller({ start: 200, end: 210 }, ex).start - 201) < 1e-9);
+  // Nothing to trim, or trimming would leave too little: unchanged.
+  assert.deepEqual(trimLeadingFiller({ start: 101.5, end: 110 }, words), { start: 101.5, end: 110 });
+  assert.deepEqual(trimLeadingFiller({ start: 100, end: 108.5 }, words), { start: 100, end: 108.5 });
 });
