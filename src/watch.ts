@@ -30,7 +30,7 @@ import {
   type Word,
 } from "./core.js";
 import { sanitize, transcribeUrl } from "./viral.js";
-import { hasClaudeCli, pickFromTranscript, pickWithAI, type Moment } from "./pick.js";
+import { hasClaudeCli, MIN_SCORE, pickFromTranscript, pickWithAI, type Moment } from "./pick.js";
 
 export interface Watch {
   id: string;
@@ -298,7 +298,11 @@ export type Picker = "auto" | "ai" | "heatmap" | "transcript";
  *  transcript: a free heuristic over the captions
  * "auto" tries them in that order.
  */
-async function chooseMoments(watch: Watch, info: RawInfo, segs: TranscriptSegment[]): Promise<{ moments: Moment[]; method: string; warnings: string[] }> {
+async function chooseMoments(
+  watch: Watch,
+  info: RawInfo,
+  segs: TranscriptSegment[],
+): Promise<{ moments: Moment[]; method: string; warnings: string[]; skipped?: string }> {
   const duration = info.duration ?? 0;
   const count = watch.clipsPerVideo ?? 2;
   const clipSec = watch.clipSeconds ?? 45;
@@ -309,9 +313,13 @@ async function chooseMoments(watch: Watch, info: RawInfo, segs: TranscriptSegmen
   if ((picker === "auto" || picker === "ai") && segs.length && (await hasClaudeCli())) {
     try {
       const peakMids = peaks.map((p) => p.start + clipSec * 0.65);
-      const moments = await pickWithAI(info.title, segs, duration, count, clipSec, peakMids);
+      const { moments, candidates } = await pickWithAI(info.title, segs, duration, count, clipSec, peakMids);
       if (moments.length) return { moments, method: "AI (Claude)", warnings };
-      warnings.push("AI picker returned no usable moments.");
+      // The AI read the whole video and nothing cleared the bar. Don't fall back to the
+      // weaker pickers: they would just clip something boring.
+      const best = candidates.reduce<Moment | undefined>((b, m) => ((m.score ?? -1) > (b?.score ?? -1) ? m : b), undefined);
+      const detail = best?.score !== undefined ? `best candidate scored ${best.score}/10${best.hook ? `: "${best.hook}"` : ""}` : "no candidates";
+      return { moments: [], method: "AI (Claude)", warnings, skipped: `nothing scored ${MIN_SCORE}/10 or higher (${detail})` };
     } catch (e) {
       warnings.push(`AI picker failed: ${(e as Error).message}`);
     }
@@ -342,7 +350,8 @@ async function clipVideo(watch: Watch, info: RawInfo, url: string): Promise<Pick
     else if (words === undefined && !transcriptNote.includes("Local"))
       transcriptNote += " Install whisper.cpp and run `clipswarm setup` to transcribe locally when captions are unavailable.";
   }
-  const { moments, method, warnings } = await chooseMoments(watch, info, segs);
+  const { moments, method, warnings, skipped } = await chooseMoments(watch, info, segs);
+  if (skipped) return { status: "dismissed", note: [`Not clipped: the AI found no moment worth posting; ${skipped}.`, ...warnings].join(" ") };
   if (!segs.length && transcriptNote) warnings.push(transcriptNote);
   if (!moments.length)
     return { status: "needs_agent", note: [segs.length ? "Couldn't pick moments automatically." : "No transcript available.", ...warnings].join(" ") };
@@ -354,6 +363,7 @@ async function clipVideo(watch: Watch, info: RawInfo, url: string): Promise<Pick
     end: Number(m.end.toFixed(2)),
     style: watch.style ?? "viral",
     title: m.hook ?? fallbackHook,
+    description: m.description,
     label: `${day}-${slug(info.title).slice(0, 40)}-${i + 1}`,
   }));
   const results = await createClips(jobs, watch.outDir ?? path.join(os.homedir(), "clipswarm", watch.id));

@@ -60,7 +60,7 @@ export async function startMcpServer(defaultOutDir: string) {
     "get_transcript",
     {
       description:
-        "Get the timestamped transcript of a YouTube video. Optionally limit to a time window to keep output small. Read it to decide which moments to clip.",
+        "Get the timestamped transcript of a YouTube video. Optionally limit to a time window to keep output small. Read it to decide which moments to clip. Pick moments that entertain, not ones that merely explain: humor, conflict, surprise, a story with stakes and a payoff, raw emotion, a quotable line, or something new to learn that a viewer would repeat to a friend ([laughter] is a strong sign). Start at the sentence that hooks and end right after the payoff. Fewer great clips beat more boring ones.",
       inputSchema: {
         url: z.string(),
         lang: z.string().optional().describe('Caption language code, default "en"'),
@@ -121,11 +121,17 @@ export async function startMcpServer(defaultOutDir: string) {
                 .enum(["plain", "viral"])
                 .optional()
                 .describe('"viral" = ready-to-post 1080x1920 short: hook header + the full video frame (never cropped, laid out to suit its shape) + word-by-word captions'),
-              title: z.string().optional().describe("Viral: the header hook (write a punchy one, ≤ ~10 words). Defaults to the video title"),
+              title: z.string().optional().describe("Viral: the header hook, read in a second with the sound off. Aim for 6 words or fewer (max 10): name the subject and stakes, hold back the twist, be specific and true to the clip. No em dashes, emoji or hashtags. Defaults to the video title"),
               captions: z.boolean().optional().describe("Viral: animated captions, default true"),
               background: z.string().optional().describe('Viral: background colour behind the video, default "#000000". The full frame is always shown, never cropped.'),
               accent: z.string().optional().describe('Viral: highlight colour for the spoken word, default "#FFE600"'),
               precise: z.boolean().optional().describe("Live only: frame-accurate cut (slower re-encode). Default snaps start to a keyframe ≤5s earlier."),
+              description: z
+                .string()
+                .optional()
+                .describe(
+                  "Post description to paste when uploading, saved next to the clip as <label>.txt with a credit line to the source added automatically. One or two short sentences (<150 chars): who is talking and the context or stakes, without repeating the header or giving away the payoff. Only claims the clip supports; no engagement bait, hashtags, emoji or em dashes; don't add the credit yourself.",
+                ),
             }),
           )
           .min(1),

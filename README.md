@@ -79,6 +79,7 @@ Each `clipper` agent reads its video's transcript, picks self-contained moments,
 | `background` | `"#000000"` | Colour behind the video (or `"blur"`) |
 | `captions` | `true` | Word-by-word captions, 1–3 words at a time, current word highlighted |
 | `accent` | `"#FFE600"` | Highlight colour |
+| `description` | none | Post text to paste when uploading (any style). Saved next to the clip as `<name>.txt`, followed by a credit line to the source video that clipswarm builds from its metadata. Scheduled watches write one for every AI-picked clip |
 
 **The full frame is always shown.** clipswarm never crops or zooms, because what matters in a video (a spreadsheet, a chart, a second speaker) can be anywhere in the frame. The layout follows the source:
 
@@ -119,9 +120,9 @@ Or just ask your agent: *"Watch for new AI agent news videos every 12 hours and 
 
 **How it picks moments**, best first:
 
-1. **AI.** If the [Claude Code](https://claude.com/claude-code) CLI is installed, Claude reads the transcript, picks self-contained moments and writes a hook for each header (e.g. *"Netflix at $67, but this model says $127"*). This runs on your own Claude account.
+1. **AI.** If the [Claude Code](https://claude.com/claude-code) CLI is installed, Claude reads the transcript looking for entertaining moments (humor, conflict, surprise, a story with a payoff, raw emotion, or something new to learn that a viewer would repeat), scores each candidate from 1 to 10, cuts it to open on the hook and end on the payoff, and writes a short header hook that names the subject and stakes without giving away the twist (e.g. *"Netflix at $67, but this model says $127"*). Only moments scoring 7 or more are clipped; if nothing in a video clears that bar, it goes to the inbox as `dismissed` with the best score in its note, rather than being clipped anyway. This runs on your own Claude account.
 2. **Most replayed.** YouTube's replay peaks, on videos old enough to have them (usually several days).
-3. **Transcript heuristic.** Free and offline: it scores stretches for questions, numbers, strong claims and energy.
+3. **Transcript heuristic.** Free and offline: it scores stretches for laughter and applause, emotional and story words, banter, questions, numbers, strong claims and energy, and marks down lecture-style explanations.
 
 If YouTube's captions are missing or rate-limited, the watcher downloads just the audio and transcribes it with whisper.cpp. Anything it can't clip lands in the inbox as `needs_agent` for your agent to handle.
 
