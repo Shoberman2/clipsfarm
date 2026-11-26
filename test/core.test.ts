@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createClip, formatTime, parseTime } from "../src/core.js";
+import { createClip, descriptionText, formatTime, parseTime } from "../src/core.js";
 
 for (const [name, value, message] of [
   ["CLIPSWARM_CONCURRENCY", "0", "a positive integer"],
@@ -179,4 +179,15 @@ import { dropNonSpeech } from "../src/viral.js";
 test("dropNonSpeech removes multi-token whisper markers", () => {
   const ws = ["(upbeat", "music)", ">>", "Hello", "[BLANK_AUDIO]", "there", "♪♪", "(laughs)", "friend."].map((text, i) => ({ start: i, end: i + 1, text }));
   assert.deepEqual(dropNonSpeech(ws).map((w) => w.text), ["Hello", "there", "friend."]);
+});
+
+test("descriptionText appends a credit line built from the video's metadata", () => {
+  const job = { url: "https://youtu.be/abc123", start: 0, end: 10 };
+  assert.equal(
+    descriptionText("  Woody bets Wesley Snipes he can't dunk.  ", { job, videoTitle: "Hot   Ones", videoId: "abc123", videoChannel: "First We Feast", sourceStart: 754.6 }),
+    'Woody bets Wesley Snipes he can\'t dunk.\n\nSource: "Hot Ones" by First We Feast https://www.youtube.com/watch?v=abc123&t=754s\n',
+  );
+  // Live clips link the stream without a timestamp; unknown videos fall back to the job URL.
+  assert.match(descriptionText("x", { job, videoTitle: "Live", videoId: "abc123", live: { from: "t" }, sourceStart: 5 }), /watch\?v=abc123\n$/);
+  assert.equal(descriptionText("x", { job }), "x\n\nSource: the original video https://youtu.be/abc123\n");
 });

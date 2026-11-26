@@ -33,6 +33,12 @@ export interface ClipJob {
   background?: string;
   /** Viral only: highlight colour for the spoken word. Default "#FFE600". */
   accent?: string;
+  /**
+   * Post description to paste when uploading. Saved next to the clip as
+   * `<name>.txt`, followed by a credit line to the source video that
+   * clipswarm builds from the video's metadata.
+   */
+  description?: string;
 }
 
 export interface ClipResult {
@@ -50,6 +56,10 @@ export interface ClipResult {
   /** Live stream-copy clips: seconds of extra footage before the requested start (keyframe snap). */
   leadIn?: number;
   videoTitle?: string;
+  videoId?: string;
+  videoChannel?: string;
+  /** The `.txt` file holding the post description and source credit, when the job had a description. */
+  descriptionPath?: string;
   /** Non-fatal issues, e.g. captions skipped. */
   warnings?: string[];
 }
@@ -418,6 +428,30 @@ function checkLength(start: number, end: number, job: ClipJob) {
  * pull the whole video. Live streams are cut from YouTube's DVR window.
  */
 export async function createClip(job: ClipJob, outDir: string): Promise<ClipResult> {
+  const r = await cutClip(job, outDir);
+  if (!r.ok || !job.description?.trim()) return r;
+  const txt = r.path!.replace(/\.mp4$/, "") + ".txt";
+  try {
+    await writeFile(txt, descriptionText(job.description, r));
+    return { ...r, descriptionPath: txt };
+  } catch (e) {
+    return { ...r, warnings: [...(r.warnings ?? []), `Couldn't save the description: ${(e as Error).message}`] };
+  }
+}
+
+/**
+ * The post description plus a credit line to the source. The credit comes
+ * from the video's metadata, never from the model, so it's always accurate.
+ */
+export function descriptionText(description: string, r: Pick<ClipResult, "job" | "videoTitle" | "videoId" | "videoChannel" | "sourceStart" | "live">): string {
+  const link = r.videoId
+    ? `https://www.youtube.com/watch?v=${r.videoId}${!r.live && r.sourceStart !== undefined ? `&t=${Math.floor(r.sourceStart)}s` : ""}`
+    : r.job.url;
+  const title = r.videoTitle ? `"${r.videoTitle.replace(/\s+/g, " ").trim()}"` : "the original video";
+  return `${description.trim()}\n\nSource: ${title}${r.videoChannel ? ` by ${r.videoChannel}` : ""} ${link}\n`;
+}
+
+async function cutClip(job: ClipJob, outDir: string): Promise<ClipResult> {
   if (job.style === "viral") return createViralClip(job, outDir);
   const t0 = Date.now();
   try {
@@ -488,6 +522,8 @@ export async function createClip(job: ClipJob, outDir: string): Promise<ClipResu
       elapsedMs: Date.now() - t0,
       sourceStart: start,
       videoTitle: info.title,
+      videoId: info.id,
+      videoChannel: info.channel ?? info.uploader,
     };
   } catch (e) {
     return { ok: false, job, error: (e as Error).message, elapsedMs: Date.now() - t0 };
@@ -662,6 +698,8 @@ async function createLiveClip(job: ClipJob, info: RawInfo, outDir: string, t0: n
     live: { from: wall(from), to: wall(end) },
     leadIn: start - from,
     videoTitle: info.title,
+    videoId: info.id,
+    videoChannel: info.channel ?? info.uploader,
   };
 }
 
@@ -675,7 +713,7 @@ async function createViralClip(job: ClipJob, outDir: string): Promise<ClipResult
   let tmp: string | undefined;
   try {
     tmp = await mkdtemp(path.join(os.tmpdir(), "clipswarm-src-"));
-    const base = await createClip({ ...job, style: "plain", vertical: false, label: "src" }, tmp);
+    const base = await cutClip({ ...job, style: "plain", vertical: false, label: "src", description: undefined }, tmp);
     if (!base.ok) return { ...base, job, elapsedMs: Date.now() - t0 };
 
     const warnings: string[] = [];
